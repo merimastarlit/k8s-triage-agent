@@ -1,0 +1,27 @@
+{
+  "image": "docker.io/library/busybox:1.36",
+  "lastState": {
+    "terminated": {
+      "containerID": "containerd://6ef7e339c359a96f8ad92135ccca7a658316052407fceb8871d3ecc8dd723345",
+      "exitCode": 137,
+      "finishedAt": "2026-07-16T23:15:34Z",
+      "reason": "OOMKilled",
+      "startedAt": "2026-07-16T23:15:34Z"
+    }
+  },
+  "name": "app",
+  "ready": false,
+  "resources": {
+    "limits": {
+      "memory": "10Mi"
+    }
+  },
+  "restartCount": 3,
+  "started": false,
+  "state": {
+    "waiting": {
+      "message": "back-off 40s restarting failed container=app pod=oomkill-demo_default",
+      "reason": "CrashLoopBackOff"
+    }
+  }
+}

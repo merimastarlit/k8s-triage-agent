@@ -1,0 +1,16 @@
+# Agent
+claude-agent-sdk
+python-dotenv
+
+# Kubernetes
+# Client vY.Z targets Kubernetes 1.Y. kind ships 1.36, so pin to 36.x.
+# Deliberately the sync client: this makes ~10 calls against a local
+# cluster, single user, nothing else competing for the event loop.
+# kubernetes-asyncio exists and mirrors this versioning if that changes.
+kubernetes>=36,<37
+
+# Tests
+pytest
+
+# Observability (phase 2)
+langfuse>=3,<4

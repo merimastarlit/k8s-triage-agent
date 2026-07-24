@@ -1,0 +1,50 @@
+{
+  "metadata": {
+    "name": "payments-api-5bb5b8ff88-2hpr4",
+    "namespace": "default"
+  },
+  "spec": {
+    "containers": [
+      {
+        "name": "app",
+        "image": "busybox:1.36",
+        "env": [
+          {
+            "name": "DB_HOST",
+            "valueFrom": {
+              "configMapKeyRef": {"name": "app-config", "key": "db_host"}
+            }
+          }
+        ],
+        "resources": {
+          "limits": {"cpu": "100m", "memory": "64Mi"},
+          "requests": {"cpu": "50m", "memory": "32Mi"}
+        }
+      }
+    ]
+  },
+  "status": {
+    "phase": "Pending",
+    "conditions": [
+      {"type": "PodScheduled", "status": "True"},
+      {"type": "Ready", "status": "False", "reason": "ContainersNotReady"}
+    ],
+    "containerStatuses": [
+      {
+        "name": "app",
+        "image": "busybox:1.36",
+        "imageID": "",
+        "lastState": {},
+        "ready": false,
+        "restartCount": 0,
+        "started": false,
+        "state": {
+          "waiting": {
+            "message": "couldn't find key db_host in ConfigMap default/app-config",
+            "reason": "CreateContainerConfigError"
+          }
+        }
+      }
+    ]
+  }
+}

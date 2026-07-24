@@ -1,0 +1,23 @@
+{
+  "image": "busybox:1.36",
+  "imageID": "",
+  "lastState": {},
+  "name": "app",
+  "ready": false,
+  "restartCount": 0,
+  "started": false,
+  "state": {
+    "waiting": {
+      "message": "couldn't find key db_host in ConfigMap default/app-config",
+      "reason": "CreateContainerConfigError"
+    }
+  },
+  "volumeMounts": [
+    {
+      "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+      "name": "kube-api-access-q78rm",
+      "readOnly": true,
+      "recursiveReadOnly": "Disabled"
+    }
+  ]
+}

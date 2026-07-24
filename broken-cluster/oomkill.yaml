@@ -1,0 +1,31 @@
+# OOMKilled: a 10Mi memory limit against a container that immediately
+# allocates ~100Mi.
+#
+# Verified on kind (Kubernetes 1.36): lastState.terminated.reason is
+# "OOMKilled" with exitCode 137.
+#
+# The interesting part for triage is that this pod trips two checks at
+# once. It's CrashLooping (restartCount climbing, never ready) *and*
+# OOMKilled. kubectl get pods only shows you CrashLoopBackOff. The cause
+# is one level down, in the previous container's termination reason.
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: report-generator
+  namespace: default
+spec:
+  containers:
+    - name: app
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - "dd if=/dev/zero of=/dev/null bs=100M count=1; sleep 3600"
+      resources:
+        limits:
+          memory: "10Mi"
+          cpu: "100m"
+        requests:
+          memory: "10Mi"
+          cpu: "50m"
