@@ -104,6 +104,9 @@ The MCP server exposes four tools and none of them mutate anything:
 
 There is no write path. Nobody wants an LLM holding `kubectl delete`.
 
+<img width="742" height="724" alt="Screenshot 2026-07-27 at 6 24 58 PM" src="https://github.com/user-attachments/assets/22b4ea54-e699-41d6-9408-93bb18c9efcd" />
+
+
 ## Tests
 
 Fixtures are **real API responses** captured from a kind cluster running
