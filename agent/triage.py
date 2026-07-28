@@ -19,6 +19,7 @@ load_dotenv()
 from claude_agent_sdk import (
     query, ClaudeAgentOptions, AssistantMessage,
     TextBlock, ToolUseBlock, ResultMessage,
+    UserMessage, ToolResultBlock,
 )
 from langfuse import get_client
 
@@ -83,14 +84,14 @@ async def run_triage(namespace: str, output_path: str = None):
 
     report_lines = []
     tool_calls = []
+    # Open tool-call spans keyed by the ToolUseBlock id. A tool call and its
+    # result arrive in separate messages — the call in an AssistantMessage,
+    # the result later in a UserMessage — linked only by this id. We open the
+    # span when the call appears and close it when the result does, so the
+    # span stays open across the actual execution and records real latency
+    # instead of the 0.00s the old empty-span version showed.
+    open_spans = {}
 
-    # Everything that belongs to this trace stays inside the with block.
-    #
-    # The auditor gets this wrong: its `async for` loop sits outside the
-    # `with`, so the root span opens, assigns an empty list, and closes before
-    # a single tool runs. Child spans then attach to nothing and update_trace
-    # fires on a closed span, which is why its tags never appeared in the
-    # dashboard. Indentation, not the SDK.
     with langfuse.start_as_current_observation(
         as_type="span",
         name="k8s-triage",
@@ -106,16 +107,26 @@ async def run_triage(namespace: str, output_path: str = None):
                         report_lines.append(block.text)
                     elif isinstance(block, ToolUseBlock):
                         tool_calls.append(block.name)
-                        # A span per tool call. On this project the trace is
-                        # worth more than it was on the auditor: it shows the
-                        # agent choosing which pods to investigate and in what
-                        # order. That sequence is the reasoning made visible.
-                        with root.start_as_current_observation(
-                            as_type="span",
+                        # Open a span and hold it. Created off root so it nests
+                        # under the trace. The matching result closes it below.
+                        open_spans[block.id] = root.start_span(
                             name=block.name,
                             input=block.input,
-                        ):
-                            pass
+                        )
+
+            # Tool results come back as ToolResultBlocks inside a UserMessage.
+            # Each carries the tool_use_id of the call it answers, which is how
+            # we find the span to close.
+            if isinstance(message, UserMessage) and isinstance(message.content, list):
+                for block in message.content:
+                    if isinstance(block, ToolResultBlock):
+                        span = open_spans.pop(block.tool_use_id, None)
+                        if span is not None:
+                            span.update(
+                                output=block.content,
+                                level="ERROR" if block.is_error else "DEFAULT",
+                            )
+                            span.end()
 
             if isinstance(message, ResultMessage):
                 # Every model billed in this run, not just the first key.
@@ -143,6 +154,17 @@ async def run_triage(namespace: str, output_path: str = None):
                 print(f"Triage complete. Cost: ${message.total_cost_usd:.4f}")
                 print(f"Models: {models}")
                 print(f"Tool calls: {len(tool_calls)}")
+
+        # Any span still open never got a matching result — the run ended
+        # mid-call (max_turns) or a result was dropped. End them so they're
+        # sent rather than leaked, and mark them so the gap is visible in the
+        # trace instead of looking like a successful call.
+        for span in open_spans.values():
+            span.update(
+                output="<no result received before run ended>",
+                level="WARNING",
+            )
+            span.end()
 
     if output_path and report_lines:
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
