@@ -1,0 +1,78 @@
+# Read-only RBAC for the triage agent.
+#
+# This is the security boundary. The agent reads cluster state and never
+# mutates it, and this manifest is what enforces that at the API server —
+# not the Python code, not the prompt, not trust in the model. Even if a
+# bug or a prompt injection made the agent attempt a delete, the API server
+# would reject it, because the permission does not exist here.
+#
+# Every grant below maps to an actual call one of the four tools makes.
+# Nothing is here "just in case". The rule is least privilege: the minimum
+# access the agent needs to do its job, and not one verb more. A reviewer
+# can audit the agent's entire cluster authority by reading this file.
+#
+#   Tool                  API call                    resource      verb
+#   ────────────────────  ──────────────────────────  ────────────  ────
+#   list_pods             list_namespaced_pod         pods          list
+#   get_logs              read_namespaced_pod_log     pods/log      get
+#   get_pod_events        list_namespaced_event       events        list
+#   describe_deployment   read_namespaced_deployment  deployments   get
+#
+# watch is included alongside list/get by convention for read-only roles;
+# the agent does not currently watch, but granting it costs nothing and
+# matches what reviewers expect a read-only role to look like.
+---
+# The identity the agent runs as when deployed in-cluster. A pod using this
+# ServiceAccount inherits exactly the permissions bound to it below and
+# nothing else.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: triage-agent
+  namespace: triage-agent
+---
+# A ClusterRole rather than a namespaced Role: triage is useful across
+# namespaces, and an on-call engineer should be able to point it at any
+# namespace without editing bindings. The permissions are still read-only —
+# cluster-wide read, cluster-wide-nothing-else.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: triage-agent-readonly
+rules:
+  # Core API group (""): pods, their logs, and events.
+  #
+  # pods/log is a subresource and a separate permission from pods — you can
+  # grant one without the other. The agent needs both: pod status to run the
+  # checks, and logs to explain a crash.
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - events
+    verbs: ["get", "list", "watch"]
+
+  # apps API group: deployments. describe_deployment reads the spec to find
+  # causes the pod status can't show, like a ConfigMap reference that points
+  # at a key that doesn't exist.
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+    verbs: ["get", "list", "watch"]
+---
+# Bind the read-only role to the agent's ServiceAccount. This is the line
+# that actually grants the permissions; the ClusterRole above only defines
+# them. A ClusterRoleBinding applies the role in every namespace, which is
+# what makes cross-namespace triage work.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: triage-agent-readonly
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: triage-agent-readonly
+subjects:
+  - kind: ServiceAccount
+    name: triage-agent
+    namespace: triage-agent
